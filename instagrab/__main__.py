@@ -55,6 +55,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    if update.message is None:
+        return
+
+    await update.message.reply_text("pong: INSTAGRAB работает.")
+
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.message is None:
+        return
+
+    settings: Settings = context.application.bot_data["settings"]
+    cookies_status = "подключены" if settings.instagram_cookies_file else "не подключены"
+    await update.message.reply_text(
+        "INSTAGRAB online. "
+        f"Cookies: {cookies_status}. "
+        f"Upload limit: {settings.max_upload_mb} MB."
+    )
+
+
+async def _post_init(app: Application) -> None:
+    await app.bot.delete_webhook(drop_pending_updates=False)
+    bot = await app.bot.get_me()
+    logger.info("Telegram bot started as @%s", bot.username)
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None or update.message.text is None:
         return
@@ -192,10 +219,13 @@ def main() -> None:
         .get_updates_connect_timeout(30)
         .get_updates_read_timeout(120)
         .get_updates_write_timeout(120)
+        .post_init(_post_init)
         .build()
     )
     app.bot_data["settings"] = settings
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ping", ping))
+    app.add_handler(CommandHandler("status", status))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
