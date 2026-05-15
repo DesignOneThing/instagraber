@@ -1,1 +1,1 @@
-web: python -m instagrab
+web: python3 -m instagrab
