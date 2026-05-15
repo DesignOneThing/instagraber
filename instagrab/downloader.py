@@ -42,6 +42,11 @@ def download_instagram_media(
         "noplaylist": False,
         "quiet": True,
         "no_warnings": True,
+        "socket_timeout": 90,
+        "retries": 5,
+        "fragment_retries": 5,
+        "file_access_retries": 5,
+        "extractor_retries": 5,
         "max_filesize": max_download_bytes,
         "http_headers": {
             "User-Agent": (

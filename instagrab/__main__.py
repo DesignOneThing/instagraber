@@ -80,15 +80,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 max_download_bytes=settings.max_download_bytes,
             )
 
-            await status_message.edit_text(f"Нашел файлов: {len(media_items)}. Обрабатываю...")
+            await _safe_edit_text(status_message, f"Нашел файлов: {len(media_items)}. Обрабатываю...")
 
             for item in media_items:
                 await _send_media_item(update, item, work_dir / "processed", settings)
 
-            await status_message.edit_text("Готово.")
+            await _safe_edit_text(status_message, "Готово.")
     except Exception as exc:
         logger.exception("Failed to process Instagram URL")
-        await status_message.edit_text(_human_error(exc))
+        await _safe_edit_text(status_message, _human_error(exc))
 
 
 async def _send_media_item(
@@ -126,13 +126,36 @@ async def _send_file(update: Update, path: Path, caption: str, settings: Setting
     if size > settings.max_upload_bytes:
         size_mb = size / 1024 / 1024
         await update.message.reply_text(
-            f"{caption}: файл получился {size_mb:.1f} MB, это больше лимита отправки."
+            f"{caption}: файл получился {size_mb:.1f} MB, это больше лимита отправки.",
+            read_timeout=60,
+            write_timeout=60,
         )
         return
 
     await update.message.chat.send_action(ChatAction.UPLOAD_DOCUMENT)
     with path.open("rb") as file:
-        await update.message.reply_document(document=file, filename=path.name, caption=caption)
+        await update.message.reply_document(
+            document=file,
+            filename=path.name,
+            caption=caption,
+            connect_timeout=30,
+            read_timeout=120,
+            write_timeout=300,
+            pool_timeout=30,
+        )
+
+
+async def _safe_edit_text(message, text: str) -> None:
+    try:
+        await message.edit_text(
+            text,
+            connect_timeout=30,
+            read_timeout=60,
+            write_timeout=60,
+            pool_timeout=30,
+        )
+    except Exception:
+        logger.exception("Failed to edit status message")
 
 
 def _human_error(exc: Exception) -> str:
@@ -146,6 +169,11 @@ def _human_error(exc: Exception) -> str:
         )
     if "File is larger than max-filesize" in text:
         return "Пост слишком большой для текущего лимита MAX_DOWNLOAD_MB."
+    if "timed out" in text.lower() or "timeout" in text.lower():
+        return (
+            "Instagram или Telegram слишком долго отвечал. Я увеличил таймауты, "
+            "но если ошибка повторится, попробуй ссылку еще раз или пост поменьше."
+        )
     return f"Не получилось обработать ссылку: {text[:900]}"
 
 
@@ -154,7 +182,18 @@ def main() -> None:
     ensure_ffmpeg_available()
     _start_health_server_if_needed()
 
-    app = Application.builder().token(settings.telegram_bot_token).build()
+    app = (
+        Application.builder()
+        .token(settings.telegram_bot_token)
+        .connect_timeout(30)
+        .read_timeout(120)
+        .write_timeout(300)
+        .pool_timeout(30)
+        .get_updates_connect_timeout(30)
+        .get_updates_read_timeout(120)
+        .get_updates_write_timeout(120)
+        .build()
+    )
     app.bot_data["settings"] = settings
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
