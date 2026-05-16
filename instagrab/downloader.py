@@ -11,7 +11,7 @@ from instagrab.media_tools import ffmpeg_executable
 
 
 INSTAGRAM_URL_RE = re.compile(
-    r"^https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/[A-Za-z0-9_-]+/?",
+    r"https?://(?:www\.)?instagram\.com/[^\s<>]+",
     re.IGNORECASE,
 )
 
@@ -24,8 +24,15 @@ class DownloadedMedia:
     index: int
 
 
+def extract_instagram_url(text: str) -> str | None:
+    match = INSTAGRAM_URL_RE.search(text.strip())
+    if not match:
+        return None
+    return match.group(0).rstrip(".,)]}")
+
+
 def is_instagram_post_url(text: str) -> bool:
-    return bool(INSTAGRAM_URL_RE.match(text.strip()))
+    return extract_instagram_url(text) is not None
 
 
 def download_instagram_media(

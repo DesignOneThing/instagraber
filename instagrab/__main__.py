@@ -16,7 +16,7 @@ from instagrab.config import Settings, load_settings
 from instagrab.downloader import (
     DownloadedMedia,
     download_instagram_media,
-    is_instagram_post_url,
+    extract_instagram_url,
 )
 from instagrab.media_tools import ensure_ffmpeg_available, normalize_video, split_video
 
@@ -87,10 +87,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     settings: Settings = context.application.bot_data["settings"]
-    url = update.message.text.strip()
+    url = extract_instagram_url(update.message.text)
 
-    if not is_instagram_post_url(url):
-        await update.message.reply_text("Нужна ссылка вида https://www.instagram.com/p/... или /reel/...")
+    if url is None:
+        await update.message.reply_text(
+            "Пришли ссылку Instagram: post, reel, story или открытую share-ссылку."
+        )
         return
 
     await update.message.chat.send_action(ChatAction.TYPING)
