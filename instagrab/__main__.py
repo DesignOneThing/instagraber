@@ -227,6 +227,11 @@ def _human_error(exc: Exception) -> str:
         )
     if "File is larger than max-filesize" in text:
         return "Пост слишком большой для текущего лимита MAX_DOWNLOAD_MB."
+    if "unable to extract video url" in text.lower():
+        return (
+            "Instagram поменял формат выдачи или ограничил эту ссылку. "
+            "Я обновил yt-dlp; после деплоя попробуй снова. Если повторится, нужны Instagram cookies."
+        )
     if "timed out" in text.lower() or "timeout" in text.lower():
         return (
             "Instagram или Telegram слишком долго отвечал. Я увеличил таймауты, "
