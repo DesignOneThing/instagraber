@@ -7,6 +7,8 @@ from typing import Any
 
 from yt_dlp import YoutubeDL
 
+from instagrab.media_tools import ffmpeg_executable
+
 
 INSTAGRAM_URL_RE = re.compile(
     r"^https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/[A-Za-z0-9_-]+/?",
@@ -55,6 +57,10 @@ def download_instagram_media(
             )
         },
     }
+
+    ffmpeg_path = ffmpeg_executable()
+    if ffmpeg_path is not None:
+        ydl_opts["ffmpeg_location"] = ffmpeg_path
 
     if cookies_file is not None:
         ydl_opts["cookiefile"] = str(cookies_file)

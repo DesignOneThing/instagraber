@@ -18,7 +18,7 @@ from instagrab.downloader import (
     download_instagram_media,
     is_instagram_post_url,
 )
-from instagrab.media_tools import ensure_ffmpeg_available, split_video
+from instagrab.media_tools import ensure_ffmpeg_available, normalize_video, split_video
 
 
 logging.basicConfig(
@@ -133,16 +133,45 @@ async def _send_media_item(
         await _send_file(update, item.path, f"{prefix}картинка", settings)
         return
 
-    await _send_file(update, item.path, f"{prefix}исходное видео со звуком", settings)
+    compatible_video = await normalize_video(item.path, output_dir)
+    await _send_video_file(update, compatible_video, f"{prefix}исходное видео со звуком", settings)
 
-    split = await split_video(item.path, output_dir)
+    split = await split_video(compatible_video, output_dir)
     if split.silent_video is not None:
-        await _send_file(update, split.silent_video, f"{prefix}видео без звука", settings)
+        await _send_video_file(update, split.silent_video, f"{prefix}видео без звука", settings)
 
     if split.audio is not None:
         await _send_file(update, split.audio, f"{prefix}звук отдельно", settings)
     else:
         await update.message.reply_text(f"{prefix}в этом видео не нашел отдельную аудиодорожку.")
+
+
+async def _send_video_file(update: Update, path: Path, caption: str, settings: Settings) -> None:
+    if update.message is None:
+        return
+
+    size = path.stat().st_size
+    if size > settings.max_upload_bytes:
+        size_mb = size / 1024 / 1024
+        await update.message.reply_text(
+            f"{caption}: файл получился {size_mb:.1f} MB, это больше лимита отправки.",
+            read_timeout=60,
+            write_timeout=60,
+        )
+        return
+
+    await update.message.chat.send_action(ChatAction.UPLOAD_VIDEO)
+    with path.open("rb") as file:
+        await update.message.reply_video(
+            video=file,
+            filename=path.name,
+            caption=caption,
+            supports_streaming=True,
+            connect_timeout=30,
+            read_timeout=120,
+            write_timeout=300,
+            pool_timeout=30,
+        )
 
 
 async def _send_file(update: Update, path: Path, caption: str, settings: Settings) -> None:

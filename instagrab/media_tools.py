@@ -15,8 +15,41 @@ class SplitResult:
 
 
 def ensure_ffmpeg_available() -> None:
-    if _ffmpeg_executable() is None:
+    if ffmpeg_executable() is None:
         raise RuntimeError("ffmpeg is not installed or not available in PATH.")
+
+
+async def normalize_video(video_path: Path, output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    normalized = output_dir / f"{video_path.stem}_telegram.mp4"
+
+    await _run_ffmpeg(
+        "-y",
+        "-i",
+        str(video_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        str(normalized),
+    )
+    return normalized
 
 
 async def split_video(video_path: Path, output_dir: Path) -> SplitResult:
@@ -31,9 +64,19 @@ async def split_video(video_path: Path, output_dir: Path) -> SplitResult:
         str(video_path),
         "-map",
         "0:v:0",
-        "-c",
-        "copy",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
         "-an",
+        "-movflags",
+        "+faststart",
         str(silent_video),
     )
 
@@ -63,7 +106,7 @@ async def split_video(video_path: Path, output_dir: Path) -> SplitResult:
 
 async def _run_ffmpeg(*args: str) -> None:
     process = await asyncio.create_subprocess_exec(
-        _ffmpeg_executable() or "ffmpeg",
+        ffmpeg_executable() or "ffmpeg",
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -75,7 +118,7 @@ async def _run_ffmpeg(*args: str) -> None:
         raise RuntimeError(message or "ffmpeg failed")
 
 
-def _ffmpeg_executable() -> str | None:
+def ffmpeg_executable() -> str | None:
     system_ffmpeg = shutil.which("ffmpeg")
     if system_ffmpeg:
         return system_ffmpeg
